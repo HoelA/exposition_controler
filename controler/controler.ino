@@ -1,6 +1,9 @@
+#include <SPI.h>
+#include <SD.h>
+
 #define MINUTES_TO_SECONDS 60
 #define SECONDS_TO_MILLIS 1000
-#define MAX_SCRIPT_SIZE   1200
+#define MAX_SCRIPT_SIZE   3600
 //modes
 #define SAVE_SCRIPT_MODE 1 // mode pour l'enregistrement d'un nouveau script
 #define PLAY_SCRIPT_MODE 2 // mode pour lire un script
@@ -21,26 +24,44 @@ unsigned int minTimeDeactModule1 = 1 * MINUTES_TO_SECONDS;
 unsigned int maxTimeDeactModule1 = 2 * MINUTES_TO_SECONDS;
 bool activatedModule1 = false;
 
+char scriptFileName[] = "script.txt";
+
 int mode = SAVE_SCRIPT_MODE;
 int scriptArr[MAX_SCRIPT_SIZE] = {0};
 int scriptIndex = 0;
+/* Nombre d'élément dans le tableau script */
+int scriptCount = 0;
 unsigned long lastAction = 0;
 
-//debug variables
-int countCmd = 1;
+/* Broche CS de la carte SD */
+const byte SDCARD_CS_PIN = 10; // TODO A remplacer suivant votre shield SD
+
 //Frequence en millisecondes
 int frequence = 50;
 
-//fin debug variables
+int countCmd;
 
 void setup() {
   delay(100);
   unsigned long setupTime = millis();
 
+/* Initialisation du port série (debug) */
+  Serial.begin(115200);
+
+  /* Initialisation du port SPI */
+  pinMode(10, OUTPUT); //TODO port SPI teensy
+
+  /* Initialisation de la carte SD */
+  Serial.print(F("Init carte SD... "));
+  if (!SD.begin(SDCARD_CS_PIN)) {
+    error("Carte SD FAIL");
+  }
+  Serial.println(F("Carte SD OK"));
+
   //Init module 1 activtion time
   setNextTime(setupTime, minTimeActModule1, maxTimeActModule1, nextActivationModule1);
   
-   Serial.println("fin setup");
+  Serial.println("fin setup");
 }
 
 void loop() {
@@ -52,7 +73,7 @@ void loop() {
  // isReadMode = true;
 
  //test interuption de l'enregistrement
-// if(countCmd > 100 && mode == SAVE_SCRIPT_MODE) {
+// if(scriptCount > 100 && mode == SAVE_SCRIPT_MODE) {
 //  Serial.println("test stop");
 //  setMode(PLAY_SCRIPT_MODE);
 // }
@@ -68,6 +89,8 @@ void loop() {
       //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
       if(scriptIndex > MAX_SCRIPT_SIZE) {
         Serial.println("fin enregistrement");
+       openFileAndWriteScript();
+       
         //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
         setMode(PLAY_SCRIPT_MODE);
       }
@@ -124,8 +147,69 @@ void  playScript(unsigned long loopTime) {
 
 //Change de mode et remet les compteurs à 0.
 void setMode(int newMode) {
-  mode = newMode;
   //Remettre les variables à 0
   scriptIndex = 0;
   lastAction = 0;
+  scriptCount = 0;
+
+  if(newMode == PLAY_SCRIPT_MODE && mode != newMode) {
+    loadScriptFromFile();
+  }
+
+  // Change le mode
+  mode = newMode;
+}
+
+/** Fonction de chargement du fichier de script */
+void loadScriptFromFile() {
+  Serial.println(F("Chargement du script en cours ..."));
+  File file = SD.open(scriptFileName, FILE_READ);
+  if(!file) {
+    // Erreur d'ouverture du fichier
+    error("Impossible d'ouvrir le fichier");
+  }
+
+  while (file.available() > 0) {
+    // Lit un octet du fichier tant qu'il y a des données à lire
+    scriptArr[scriptIndex] = file.read();
+    scriptIndex++;
+  }
+  scriptCount = scriptIndex - 1;
+  file.close();
+  
+  Serial.println(F("Chargement du script terminé"));
+}
+
+/** Fonction d'écriture dans le fichier */
+void openFileAndWriteScript(){
+  Serial.println(F("Préparation du fichier script en cours ..."));
+  File file = SD.open(scriptFileName, FILE_WRITE);
+  if(!file) {
+    // Erreur d'ouverture du fichier
+    error("Impossible d'ouvrir le fichier");
+  }
+
+  for (int i = 0 ; i < scriptIndex ; i++) {
+    if(file.write((byte)scriptArr[i]) == 0) {
+       Serial.println(F("Erreur d'écriture dans le fichier"));
+    }
+  }
+
+  Serial.println(F("Script enregistré"));
+}
+
+/**  Fonction de suppression d'un dossier avec gestion d'erreur */
+void deleteFile(const char* filename) {
+  if(SD.exists(filename)) {
+    if(!SD.remove (filename)) {
+      error("Erreur suppression fichier");
+    }
+  }
+}
+
+/** Log l'erreur et bloque le code */
+void error(const char* message) {
+  // Erreur d'ouverture du fichier
+  Serial.println(F(message));
+  for(;;); // Attend appui sur bouton RESET
 }
