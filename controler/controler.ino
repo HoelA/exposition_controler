@@ -49,7 +49,11 @@ void setup() {
   Serial.begin(115200);
 
   /* Initialisation du port SPI */
-  pinMode(10, OUTPUT); //TODO port SPI teensy
+  pinMode(15, OUTPUT); // port SPI teensy
+  
+//  SPI.setMOSI(pin);
+//  SPI.setMISO(pin);
+//  SPI.setSCK(pin);
 
   /* Initialisation de la carte SD */
   Serial.print(F("Init carte SD... "));
@@ -70,7 +74,7 @@ void loop() {
   //read mode : mode lecture ou mode ecriture
   // -- Lire le bouton et mettre la variable readMode à true pour enregistrer des commandes.
   //mettre readMode à false pour jouer la secende de commande.
- // isReadMode = true;
+ // mode = IDLE_MODE;
 
  //test interuption de l'enregistrement
 // if(scriptCount > 100 && mode == SAVE_SCRIPT_MODE) {
@@ -83,13 +87,14 @@ void loop() {
       // lecture de la commande (remplacer le countCmd par la vraie commande)
       scriptArr[scriptIndex] = countCmd;
       scriptIndex++;
-      countCmd++;
+      countCmd++; //pour test
       lastAction = loopTime;
 
       //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
-      if(scriptIndex > MAX_SCRIPT_SIZE) {
+      if(scriptIndex > 100) {
         Serial.println("fin enregistrement");
-       openFileAndWriteScript();
+        deleteFile(scriptFileName);
+        openFileAndWriteScript();
        
         //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
         setMode(PLAY_SCRIPT_MODE);
@@ -98,6 +103,7 @@ void loop() {
     
   } else if(mode == PLAY_SCRIPT_MODE) {
     //test de la fonction de lecture de script
+   // Serial.println("playScript");
     playScript(loopTime);
     
     //Module 1    
@@ -135,13 +141,19 @@ unsigned long getRandomTime(unsigned int minimum, unsigned int maximum) {
 }
 
 void  playScript(unsigned long loopTime) {
-  if(mode == PLAY_SCRIPT_MODE && scriptIndex < MAX_SCRIPT_SIZE && loopTime >= lastAction + frequence) {
+//  Serial.println(mode);
+//  Serial.println(scriptIndex);
+//  Serial.println(scriptCount);
+  
+  if(mode == PLAY_SCRIPT_MODE && scriptIndex < scriptCount && loopTime >= lastAction + frequence) {
     //Arrêt de la lecture si la suite du script est vide
-    if(scriptArr[scriptIndex] != 0) { 
-      Serial.println(scriptArr[scriptIndex]);
-      scriptIndex++;
-      lastAction = loopTime;
-    }
+    Serial.println(scriptArr[scriptIndex]);
+    scriptIndex++;
+    lastAction = loopTime;
+    
+  } else if(scriptIndex >= scriptCount) {
+    //Mettre fin à la lecture
+    setMode(IDLE_MODE);
   }
 }
 
@@ -150,7 +162,6 @@ void setMode(int newMode) {
   //Remettre les variables à 0
   scriptIndex = 0;
   lastAction = 0;
-  scriptCount = 0;
 
   if(newMode == PLAY_SCRIPT_MODE && mode != newMode) {
     loadScriptFromFile();
@@ -169,12 +180,18 @@ void loadScriptFromFile() {
     error("Impossible d'ouvrir le fichier");
   }
 
-  while (file.available() > 0) {
-    // Lit un octet du fichier tant qu'il y a des données à lire
-    scriptArr[scriptIndex] = file.read();
+  uint16_t myInt;
+  byte buf[2];
+  while (file.available() >= 2) {
+    // Lit deux octets du fichier tant qu'il y a des données à lire
+    buf[0] = file.read();
+    buf[1] = file.read();
+    myInt = buf[0] << 8 | buf[1];
+    scriptArr[scriptIndex] = myInt;
     scriptIndex++;
   }
   scriptCount = scriptIndex - 1;
+  scriptIndex = 0;
   file.close();
   
   Serial.println(F("Chargement du script terminé"));
@@ -183,18 +200,23 @@ void loadScriptFromFile() {
 /** Fonction d'écriture dans le fichier */
 void openFileAndWriteScript(){
   Serial.println(F("Préparation du fichier script en cours ..."));
+  scriptCount = 0;
   File file = SD.open(scriptFileName, FILE_WRITE);
   if(!file) {
     // Erreur d'ouverture du fichier
     error("Impossible d'ouvrir le fichier");
   }
 
+  byte arr[2];
   for (int i = 0 ; i < scriptIndex ; i++) {
-    if(file.write((byte)scriptArr[i]) == 0) {
+    arr[1] = scriptArr[i] & 0xff;
+    arr[0] = (scriptArr[i] >> 8) & 0xff;
+    if(file.write(arr, 2) == 0) {
        Serial.println(F("Erreur d'écriture dans le fichier"));
     }
   }
 
+  file.close();
   Serial.println(F("Script enregistré"));
 }
 
