@@ -144,63 +144,40 @@ void loop()
     
     if(mode == IDLE_MODE || mode == SAVE_SCRIPT_MODE) {
       //En mode idle et en mode enregistrement, faire bouger Grot
-        potards();
+      potards();
       actionAll();
       
-      if(mode == SAVE_SCRIPT_MODE) {
-        Serial.print("scriptIndex ");
-        Serial.println(scriptIndex);
-        //enregistrement des commandes
-        // scriptArr[scriptIndex] = countCmd; //pour test
-        scriptArr[scriptIndex] = rotation;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_cou_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_cou_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_mach;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_sou_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_sou_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_linf;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_lsup_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_lsup_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_oeil_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_oeil_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_arcin;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_arcex;
-        scriptIndex++;
-        
-        //countCmd++; //pour test
-  
-        //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
-        //if(scriptIndex > 130) {
-        if(scriptIndex > MAX_SCRIPT_SIZE) {
-          Serial.println("fin enregistrement");
-          Serial.println(scriptIndex);
-          openFileAndWriteScript();
-         
-          //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
-          setMode(PLAY_SCRIPT_MODE);
-        }
-      }
+      saveInBuffer();
     }
   }
 
+  //Code de test : simulation de données reçu depuis le xbee
+   if(mode == SAVE_SCRIPT_MODE) {
+    if(loopTime >= lastAction + frequence) {
+      fakeXbee();
+      potards();
+      saveInBuffer();
+
+      lastAction = loopTime;
+    }
+   }
   //Lecture du script
   if(mode == PLAY_SCRIPT_MODE) {
     playScript(loopTime);
   }
 }
 
+/* Simule la réception de données par xbee */
+void fakeXbee()
+{
+  int val = 0;
+  for (int i = 0; i < NB_CHANNEL; i++) {
+    TxVal[i] = val++;
+  }
+  
+}
+
+/* Lecture des données reçu par le xbee */
 void potards()
 {
   delta = map(TxVal[2], 0, 1023, -500, 500);
@@ -249,6 +226,7 @@ void potards()
   s_arcex = map(TxVal[6], 0, 1023, 1750, 1950);
 }
 
+/* Actionne les moteurs */
 void actionAll()
 {
   action (16, rotation, t);
@@ -310,6 +288,55 @@ void setNextTime(unsigned long currentTime, unsigned int minTime, unsigned int m
 // minimum and maximum in seconds
 unsigned long getRandomTime(unsigned int minimum, unsigned int maximum) {
   return random(minimum, maximum) * SECONDS_TO_MILLIS;
+}
+
+/* Enregistre les valeurs courrantes dans le buffer */
+void saveInBuffer() {
+   if(mode == SAVE_SCRIPT_MODE) {
+//        Serial.print("scriptIndex ");
+//        Serial.println(scriptIndex);
+        //enregistrement des commandes
+        // scriptArr[scriptIndex] = countCmd; //pour test
+        scriptArr[scriptIndex] = rotation;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_cou_d;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_cou_g;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_mach;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_sou_g;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_sou_d;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_linf;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_lsup_g;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_lsup_d;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_oeil_g;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_oeil_d;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_arcin;
+        scriptIndex++;
+        scriptArr[scriptIndex] = s_arcex;
+        scriptIndex++;
+        
+        //countCmd++; //pour test
+  
+        //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
+        //if(scriptIndex > 130) {
+        if(scriptIndex > MAX_SCRIPT_SIZE) {
+          Serial.println("fin enregistrement");
+          Serial.println(scriptIndex);
+          openFileAndWriteScript();
+         
+          //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
+          setMode(PLAY_SCRIPT_MODE);
+        }
+      }
 }
 
 void  playScript(unsigned long loopTime) {
