@@ -14,7 +14,7 @@ AltSoftSerial altSerial;
 
 #define MINUTES_TO_SECONDS 60
 #define SECONDS_TO_MILLIS 1000
-#define MAX_SCRIPT_SIZE   100 * 13
+#define MAX_SCRIPT_SIZE   950 * 13 //(max : 980 )
 //modes
 #define SAVE_SCRIPT_MODE 1 // mode pour l'enregistrement d'un nouveau script
 #define PLAY_SCRIPT_MODE 2 // mode pour lire un script
@@ -37,16 +37,17 @@ bool activatedModule1 = false;
 /* ----------------------------------------------------------------- */
 
 /* ----- Gestion script sur carte SD ------- */
-char scriptFileName[] = "script1.txt";
+char scriptFileName[] = "script2.txt";
 
 int mode = SAVE_SCRIPT_MODE;
-int scriptArr[MAX_SCRIPT_SIZE] = {0};
+unsigned int scriptArr[MAX_SCRIPT_SIZE] = {0};
 int scriptIndex = 0;
 /* Nombre d'élément dans le tableau script */
 int scriptCount = 0;
 unsigned long lastAction = 0;
 //Frequence en millisecondes
-int frequence = 50;
+int frequence = 20;
+unsigned long startTime = 0;
 /* ------------------------------- */
 
 /* Broche CS de la carte SD */
@@ -106,9 +107,13 @@ void setup()
   }
   Serial.println(F("Carte SD OK"));
 
-  //Init module 1 activtion time
- // setNextTime(setupTime, minTimeActModule1, maxTimeActModule1, nextActivationModule1);
-  
+  if(SD.exists(scriptFileName)) {
+    //Init module 1 activtion time
+   // setNextTime(setupTime, minTimeActModule1, maxTimeActModule1, nextActivationModule1);
+   setMode(PLAY_SCRIPT_MODE);
+  } else {
+    
+  }
    Serial.println("go");
 }
 
@@ -154,6 +159,9 @@ void loop()
   //Code de test : simulation de données reçu depuis le xbee
    if(mode == SAVE_SCRIPT_MODE) {
     if(loopTime >= lastAction + frequence) {
+      if(startTime ==0) {
+        startTime = loopTime;
+      }
       fakeXbee();
       potards();
       saveInBuffer();
@@ -168,11 +176,13 @@ void loop()
 }
 
 /* Simule la réception de données par xbee */
+int val = 0;
 void fakeXbee()
 {
-  int val = 0;
+ // Serial.println("Generation de données de test");
   for (int i = 0; i < NB_CHANNEL; i++) {
     TxVal[i] = val++;
+//    Serial.println(TxVal[i]);
   }
   
 }
@@ -328,9 +338,12 @@ void saveInBuffer() {
   
         //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
         //if(scriptIndex > 130) {
-        if(scriptIndex > MAX_SCRIPT_SIZE) {
-          Serial.println("fin enregistrement");
+        if(scriptIndex >= MAX_SCRIPT_SIZE) {
+          Serial.print("fin enregistrement nb commande = ");
           Serial.println(scriptIndex);
+          Serial.print("Durée script = ");
+          Serial.print(((millis() - startTime) / 1000));
+          Serial.println(" secondes");
           openFileAndWriteScript();
          
           //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
@@ -340,20 +353,54 @@ void saveInBuffer() {
 }
 
 void  playScript(unsigned long loopTime) {
-  Serial.println(mode);
-  Serial.println(scriptIndex);
-  Serial.println(scriptCount);
+ // Serial.println(mode);
+ // Serial.println(scriptIndex);
+ // Serial.println(scriptCount);
   
   if(mode == PLAY_SCRIPT_MODE && scriptIndex < scriptCount && loopTime >= lastAction + frequence) {
     //Arrêt de la lecture si la suite du script est vide
-    Serial.println(scriptArr[scriptIndex]);
+    //Serial.println(scriptArr[scriptIndex]);
+    if(startTime == 0) {
+      startTime = loopTime;
+    }
+    
+    rotation = scriptArr[scriptIndex];
+    scriptIndex++;
+    s_cou_d = scriptArr[scriptIndex];
+    scriptIndex++;
+    s_cou_g   =  scriptArr[scriptIndex];
+    scriptIndex++;  
+    s_mach    =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_sou_g   =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_sou_d   =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_linf    =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_lsup_g  =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_lsup_d  =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_oeil_g  =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_oeil_d  =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_arcin   =  scriptArr[scriptIndex];
+    scriptIndex++;
+    s_arcex   =  scriptArr[scriptIndex];
     scriptIndex++;
     lastAction = loopTime;
     
   } 
   
   if(scriptIndex >= scriptCount) {
-    Serial.println("Fin du script");
+    Serial.print("Fin du script (Nombre de commande = ");
+    Serial.print(scriptIndex);
+    Serial.println(")");
+    Serial.print("Durée script = ");
+    Serial.print(((millis() - startTime) / 1000));
+    Serial.println(" secondes");
     //Mettre fin à la lecture
     setMode(IDLE_MODE);
   }
@@ -367,6 +414,7 @@ void setMode(int newMode) {
 
   if(newMode == PLAY_SCRIPT_MODE && mode != newMode) {
     loadScriptFromFile();
+    startTime = 0;
   }
 
   // Change le mode
@@ -384,7 +432,7 @@ void loadScriptFromFile() {
 
   uint16_t myInt;
   byte buf[2];
-  while (file.available() > 0) {
+  while (file.available() >= 2) {
     // Lit deux octets du fichier tant qu'il y a des données à lire
     buf[0] = file.read();
     buf[1] = file.read();
@@ -392,11 +440,13 @@ void loadScriptFromFile() {
     scriptArr[scriptIndex] = myInt;
     scriptIndex++;
   }
-  scriptCount = scriptIndex - 1;
+  scriptCount = scriptIndex;
   scriptIndex = 0;
   file.close();
   
-  Serial.println(F("Chargement du script terminé"));
+  Serial.print(F("Chargement du script terminé (Nombre de commande : "));
+  Serial.print(scriptCount);
+  Serial.println(")");
 }
 
 /** Fonction d'écriture dans le fichier */
@@ -411,8 +461,11 @@ void openFileAndWriteScript(){
     error("Impossible d'ouvrir le fichier");
   }
 
+  Serial.print("Nombre de commandes à enregistrer :");
+  Serial.println(scriptIndex);
   byte arr[2];
   for (int i = 0 ; i < scriptIndex ; i++) {
+   // Serial.println(scriptArr[i]);
     arr[1] = scriptArr[i] & 0xff;
     arr[0] = (scriptArr[i] >> 8) & 0xff;
     if(file.write(arr, 2) == 0) {
@@ -429,6 +482,9 @@ void deleteFile(const char* filename) {
   if(SD.exists(filename)) {
     if(!SD.remove (filename)) {
       error("Erreur suppression fichier");
+    } else {
+      Serial.print(F("Fichier supprimer "));
+      Serial.println(filename);
     }
   }
 }
