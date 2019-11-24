@@ -88,15 +88,15 @@ void setup()
 {
   Serial1.begin(115200);
   Serial.begin(9600);
- // altSerial.begin(19200);
+  // altSerial.begin(19200);
   Serial2.begin(19200);
   xbee.setSerial(Serial2);
 
   /* Initialisation du port SPI */
   pinMode(15, OUTPUT); // port SPI teensy
   //  SPI.setMOSI(pin);
-//  SPI.setMISO(pin);
-//  SPI.setSCK(pin);
+  //  SPI.setMISO(pin);
+  //  SPI.setSCK(pin);
 
   delay(2000);
 
@@ -107,20 +107,20 @@ void setup()
   }
   Serial.println(F("Carte SD OK"));
 
-  if(SD.exists(scriptFileName)) {
+  if (SD.exists(scriptFileName)) {
     //Init module 1 activtion time
- //   setNextTime(millis(), minTimeActModule1, maxTimeActModule1, nextActivationModule1);
-   
+    //   setNextTime(millis(), minTimeActModule1, maxTimeActModule1, nextActivationModule1);
+
   } else {
-    
+
   }
-   Serial.println("go");
+  Serial.println("go");
 }
 
 void loop()
 {
   unsigned long loopTime = millis();
-//Serial.println("loop");
+  //Serial.println("loop");
   xbee.readPacket();
 
   if (xbee.getResponse().isAvailable());
@@ -145,35 +145,50 @@ void loop()
       }
       timer = millis();
     }
-  
-    
-    if(mode == IDLE_MODE || mode == SAVE_SCRIPT_MODE) {
+
+    if (mode == IDLE_MODE || mode == SAVE_SCRIPT_MODE) {
       //En mode idle et en mode enregistrement, faire bouger Grot
       potards();
       //Modification du mode en fonction de l'état du bouton du joystick
       int boutonScript = TxVal[10]; // Mettre l'index correspondant au bouton du joystick
-      if(boutonScript == 1 ){
-        setMode(SAVE_SCRIPT_MODE);
-        delay (1000); // ce delai permet d'avoir de le temps de se préparer. (peut être retiré si inutile ou gênant)
+      if (boutonScript == 1 ) {
+        if (mode != SAVE_SCRIPT_MODE) {
+          setMode(SAVE_SCRIPT_MODE);
+          delay (1000); // ce delai permet d'avoir de le temps de se préparer. (peut être retiré si inutile ou gênant)
+        }
       } else {
         //arrêt de l'enreistrement
-        if(mode == SAVE_SCRIPT_MODE) {
+        if (mode == SAVE_SCRIPT_MODE) {
           finEnregistrementScript();
         }
       }
+
       actionAll();
 
       // Enregistrement des commandes dans un buffer qui sera ensuite enregistré sur la carte SD
       //La fonction saveInBuffer(), n'enregistre les commandes que si le mode est SAVE_SCRIPT_MODE
       saveInBuffer();
     }
+  } else {
+    if (mode != SAVE_SCRIPT_MODE) {
+      loopModule(loopTime,  minTimeActModule1, maxTimeActModule1, nextActivationModule1,
+                 minTimeDeactModule1, maxTimeDeactModule1, nextDeactivationModule1, activatedModule1);
+    }
+    playScript(loopTime);
   }
+
 
   //--- Début Code de test : simulation de données reçu depuis le xbee ------------------
   //Ce code de test doit être commenté si un xbee est connecté !!!
-   if(mode == SAVE_SCRIPT_MODE) {
-    if(loopTime >= lastAction + frequence) {
-      if(startTime ==0) {
+  testloop(loopTime);
+  // --- Fin code de test ------------------------------------------------------------------
+
+}
+
+void testloop(unsigned long loopTime) {
+  if (mode == SAVE_SCRIPT_MODE) {
+    if (loopTime >= lastAction + frequence) {
+      if (startTime == 0) {
         startTime = loopTime;
       }
       fakeXbee();
@@ -182,18 +197,13 @@ void loop()
 
       lastAction = loopTime;
     }
-   } else {
-//    if(!activatedModule1) {
-//      Serial.println(activatedModule1);
-//      activatedModule1 = true;
-//    }
-    loopModule(loopTime,  minTimeActModule1, maxTimeActModule1, nextActivationModule1, 
+  } else {
+    //    if(!activatedModule1) {
+    //      Serial.println(activatedModule1);
+    //      activatedModule1 = true;
+    //    }
+    loopModule(loopTime,  minTimeActModule1, maxTimeActModule1, nextActivationModule1,
                minTimeDeactModule1, maxTimeDeactModule1, nextDeactivationModule1, activatedModule1);
-   }
-// --- Fin code de test ------------------------------------------------------------------
-   
-  //Lecture du script
-  if(mode == PLAY_SCRIPT_MODE) {
     playScript(loopTime);
   }
 }
@@ -202,12 +212,12 @@ void loop()
 int val = 0;
 void fakeXbee()
 {
- // Serial.println("Generation de données de test");
+  // Serial.println("Generation de données de test");
   for (int i = 0; i < NB_CHANNEL; i++) {
     TxVal[i] = val++;
-//    Serial.println(TxVal[i]);
+    //    Serial.println(TxVal[i]);
   }
-  
+
 }
 
 /* Lecture des données reçu par le xbee */
@@ -224,18 +234,18 @@ void potards()
 
   s_mach = map(TxVal[3], 0, 1023, 1700, 1150);
 
-    s_sou_g = map(TxVal[4] , 0, 1023, 1150, 2100);
-    s_sou_g = constrain(s_sou_g, 1200, 2100);
-    s_sou_d = map(TxVal[4] , 0, 1023, 1800, 900);
-    s_sou_d = constrain(s_sou_d, 900, 1800);
+  s_sou_g = map(TxVal[4] , 0, 1023, 1150, 2100);
+  s_sou_g = constrain(s_sou_g, 1200, 2100);
+  s_sou_d = map(TxVal[4] , 0, 1023, 1800, 900);
+  s_sou_d = constrain(s_sou_d, 900, 1800);
 
   s_linf = map(TxVal[4], 0, 1023, 1100, 1850);
   s_linf = constrain(s_linf, 1150, 1850);
 
-    s_lsup_g = map(TxVal[5] , 0, 1023, 1100, 1900);
-    s_lsup_g = constrain(s_lsup_g, 1100, 1900);
-    s_lsup_d = map(TxVal[5] , 0, 1023, 1800, 1000);
-    s_lsup_d = constrain(s_lsup_d, 1000, 1800);
+  s_lsup_g = map(TxVal[5] , 0, 1023, 1100, 1900);
+  s_lsup_g = constrain(s_lsup_g, 1100, 1900);
+  s_lsup_d = map(TxVal[5] , 0, 1023, 1800, 1000);
+  s_lsup_d = constrain(s_lsup_d, 1000, 1800);
 
 
   if (TxVal[9] == 1)
@@ -296,26 +306,26 @@ void readData() {
   }
 }
 
-void loopModule(unsigned long loopTime,  unsigned int minActTime, unsigned int maxActTime, 
-                unsigned long &resultActTime, unsigned int minDeactTime, unsigned int maxDeactTime, 
+void loopModule(unsigned long loopTime,  unsigned int minActTime, unsigned int maxActTime,
+                unsigned long &resultActTime, unsigned int minDeactTime, unsigned int maxDeactTime,
                 unsigned long &resultDeactTime, bool &activatedModule) {
-                  
-    if (!activatedModule && loopTime >= nextActivationModule1) {
-      Serial.println("activation");
-      //  set deactivation time
-      setNextTime(loopTime, minDeactTime, maxDeactTime, resultDeactTime);
-      
-      activatedModule = true;
-      setMode(PLAY_SCRIPT_MODE);
-    } else if (activatedModule1 && loopTime >= nextDeactivationModule1) {
-      Serial.println("desactivation");
-      
-      // set next activation time
-      setNextTime(loopTime, minActTime, maxActTime, resultActTime);
-      
-      //deactivate module
-      activatedModule = false;
-      setMode(IDLE_MODE);
+
+  if (!activatedModule && loopTime >= nextActivationModule1) {
+    Serial.println("activation");
+    //  set deactivation time
+    setNextTime(loopTime, minDeactTime, maxDeactTime, resultDeactTime);
+
+    activatedModule = true;
+    setMode(PLAY_SCRIPT_MODE);
+  } else if (activatedModule1 && loopTime >= nextDeactivationModule1) {
+    Serial.println("desactivation");
+
+    // set next activation time
+    setNextTime(loopTime, minActTime, maxActTime, resultActTime);
+
+    //deactivate module
+    activatedModule = false;
+    setMode(IDLE_MODE);
   }
 }
 
@@ -330,46 +340,46 @@ unsigned long getRandomTime(unsigned int minimum, unsigned int maximum) {
 
 /* Enregistre les valeurs courrantes dans le buffer */
 void saveInBuffer() {
-   if(mode == SAVE_SCRIPT_MODE) {
-//        Serial.print("scriptIndex ");
-//        Serial.println(scriptIndex);
-        //enregistrement des commandes
-        // scriptArr[scriptIndex] = countCmd; //pour test
-        scriptArr[scriptIndex] = rotation;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_cou_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_cou_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_mach;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_sou_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_sou_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_linf;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_lsup_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_lsup_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_oeil_g;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_oeil_d;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_arcin;
-        scriptIndex++;
-        scriptArr[scriptIndex] = s_arcex;
-        scriptIndex++;
-        
-        //countCmd++; //pour test
-  
-        //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
-        //if(scriptIndex > 130) {
-        if(scriptIndex >= MAX_SCRIPT_SIZE) {
-         finEnregistrementScript();
-        }
-      }
+  if (mode == SAVE_SCRIPT_MODE) {
+    //        Serial.print("scriptIndex ");
+    //        Serial.println(scriptIndex);
+    //enregistrement des commandes
+    // scriptArr[scriptIndex] = countCmd; //pour test
+    scriptArr[scriptIndex] = rotation;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_cou_d;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_cou_g;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_mach;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_sou_g;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_sou_d;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_linf;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_lsup_g;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_lsup_d;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_oeil_g;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_oeil_d;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_arcin;
+    scriptIndex++;
+    scriptArr[scriptIndex] = s_arcex;
+    scriptIndex++;
+
+    //countCmd++; //pour test
+
+    //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
+    //if(scriptIndex > 130) {
+    if (scriptIndex >= MAX_SCRIPT_SIZE) {
+      finEnregistrementScript();
+    }
+  }
 }
 
 void finEnregistrementScript() {
@@ -379,30 +389,30 @@ void finEnregistrementScript() {
   Serial.print(((millis() - startTime) / 1000));
   Serial.println(" secondes");
   openFileAndWriteScript();
-  
+
   //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
   setMode(IDLE_MODE);
 }
 
 void  playScript(unsigned long loopTime) {
- // Serial.println(mode);
- // Serial.println(scriptIndex);
- // Serial.println(scriptCount);
-  
-  if(mode == PLAY_SCRIPT_MODE && scriptIndex < scriptCount && loopTime >= lastAction + frequence) {
+  // Serial.println(mode);
+  // Serial.println(scriptIndex);
+  // Serial.println(scriptCount);
+
+  if (mode == PLAY_SCRIPT_MODE && scriptIndex < scriptCount && loopTime >= lastAction + frequence) {
     //Arrêt de la lecture si la suite du script est vide
     //Serial.println(scriptArr[scriptIndex]);
-    if(startTime == 0) {
+    if (startTime == 0) {
       Serial.println("Start script");
       startTime = loopTime;
     }
-    
+
     rotation = scriptArr[scriptIndex];
     scriptIndex++;
     s_cou_d = scriptArr[scriptIndex];
     scriptIndex++;
     s_cou_g   =  scriptArr[scriptIndex];
-    scriptIndex++;  
+    scriptIndex++;
     s_mach    =  scriptArr[scriptIndex];
     scriptIndex++;
     s_sou_g   =  scriptArr[scriptIndex];
@@ -424,10 +434,10 @@ void  playScript(unsigned long loopTime) {
     s_arcex   =  scriptArr[scriptIndex];
     scriptIndex++;
     lastAction = loopTime;
-    
-  } 
-  
-  if(scriptIndex >= scriptCount) {
+
+  }
+
+  if (scriptIndex >= scriptCount) {
     Serial.print("Fin du script (Nombre de commande = ");
     Serial.print(scriptIndex);
     Serial.println(")");
@@ -445,7 +455,7 @@ void setMode(int newMode) {
   scriptIndex = 0;
   lastAction = 0;
 
-  if(newMode == PLAY_SCRIPT_MODE && mode != newMode) {
+  if (newMode == PLAY_SCRIPT_MODE && mode != newMode) {
     loadScriptFromFile();
     startTime = 0;
   }
@@ -458,7 +468,7 @@ void setMode(int newMode) {
 void loadScriptFromFile() {
   Serial.println(F("Chargement du script en cours ..."));
   File file = SD.open(scriptFileName, FILE_READ);
-  if(!file) {
+  if (!file) {
     // Erreur d'ouverture du fichier
     error("Impossible d'ouvrir le fichier");
   }
@@ -476,20 +486,20 @@ void loadScriptFromFile() {
   scriptCount = scriptIndex;
   scriptIndex = 0;
   file.close();
-  
+
   Serial.print(F("Chargement du script terminé (Nombre de commande : "));
   Serial.print(scriptCount);
   Serial.println(")");
 }
 
 /** Fonction d'écriture dans le fichier */
-void openFileAndWriteScript(){
+void openFileAndWriteScript() {
   Serial.println(F("Préparation du fichier script en cours ..."));
   deleteFile(scriptFileName);
   delay(500);
   scriptCount = 0;
   File file = SD.open(scriptFileName, FILE_WRITE);
-  if(!file) {
+  if (!file) {
     // Erreur d'ouverture du fichier
     error("Impossible d'ouvrir le fichier");
   }
@@ -498,11 +508,11 @@ void openFileAndWriteScript(){
   Serial.println(scriptIndex);
   byte arr[2];
   for (int i = 0 ; i < scriptIndex ; i++) {
-   // Serial.println(scriptArr[i]);
+    // Serial.println(scriptArr[i]);
     arr[1] = scriptArr[i] & 0xff;
     arr[0] = (scriptArr[i] >> 8) & 0xff;
-    if(file.write(arr, 2) == 0) {
-       Serial.println(F("Erreur d'écriture dans le fichier"));
+    if (file.write(arr, 2) == 0) {
+      Serial.println(F("Erreur d'écriture dans le fichier"));
     }
   }
 
@@ -512,8 +522,8 @@ void openFileAndWriteScript(){
 
 /**  Fonction de suppression d'un dossier avec gestion d'erreur */
 void deleteFile(const char* filename) {
-  if(SD.exists(filename)) {
-    if(!SD.remove (filename)) {
+  if (SD.exists(filename)) {
+    if (!SD.remove (filename)) {
       error("Erreur suppression fichier");
     } else {
       Serial.print(F("Fichier supprimer "));
@@ -526,5 +536,5 @@ void deleteFile(const char* filename) {
 void error(const char* message) {
   // Erreur d'ouverture du fichier
   Serial.println(F(message));
-  for(;;); // Attend appui sur bouton RESET
+  for (;;); // Attend appui sur bouton RESET
 }
