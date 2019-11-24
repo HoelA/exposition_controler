@@ -30,16 +30,16 @@ unsigned int maxTimeActModule1 = 2 * MINUTES_TO_SECONDS;
 //time to deactivate module 1 in millis
 unsigned long nextDeactivationModule1 = 0;
 // Module 1 : minimum in seconds
-unsigned int minTimeDeactModule1 = 1 * MINUTES_TO_SECONDS;
+unsigned int minTimeDeactModule1 = 20;//1 * MINUTES_TO_SECONDS;
 // Module 1 : maximum in seconds
-unsigned int maxTimeDeactModule1 = 2 * MINUTES_TO_SECONDS;
+unsigned int maxTimeDeactModule1 = 20;//2 * MINUTES_TO_SECONDS;
 bool activatedModule1 = false;
 /* ----------------------------------------------------------------- */
 
 /* ----- Gestion script sur carte SD ------- */
 char scriptFileName[] = "script2.txt";
 
-int mode = SAVE_SCRIPT_MODE;
+int mode = IDLE_MODE;
 unsigned int scriptArr[MAX_SCRIPT_SIZE] = {0};
 int scriptIndex = 0;
 /* Nombre d'élément dans le tableau script */
@@ -109,8 +109,8 @@ void setup()
 
   if(SD.exists(scriptFileName)) {
     //Init module 1 activtion time
-   // setNextTime(setupTime, minTimeActModule1, maxTimeActModule1, nextActivationModule1);
-   setMode(PLAY_SCRIPT_MODE);
+ //   setNextTime(millis(), minTimeActModule1, maxTimeActModule1, nextActivationModule1);
+   
   } else {
     
   }
@@ -150,13 +150,27 @@ void loop()
     if(mode == IDLE_MODE || mode == SAVE_SCRIPT_MODE) {
       //En mode idle et en mode enregistrement, faire bouger Grot
       potards();
+      //Modification du mode en fonction de l'état du bouton du joystick
+      int boutonScript = TxVal[10]; // Mettre l'index correspondant au bouton du joystick
+      if(boutonScript == 1 ){
+        setMode(SAVE_SCRIPT_MODE);
+        delay (1000); // ce delai permet d'avoir de le temps de se préparer. (peut être retiré si inutile ou gênant)
+      } else {
+        //arrêt de l'enreistrement
+        if(mode == SAVE_SCRIPT_MODE) {
+          finEnregistrementScript();
+        }
+      }
       actionAll();
-      
+
+      // Enregistrement des commandes dans un buffer qui sera ensuite enregistré sur la carte SD
+      //La fonction saveInBuffer(), n'enregistre les commandes que si le mode est SAVE_SCRIPT_MODE
       saveInBuffer();
     }
   }
 
-  //Code de test : simulation de données reçu depuis le xbee
+  //--- Début Code de test : simulation de données reçu depuis le xbee ------------------
+  //Ce code de test doit être commenté si un xbee est connecté !!!
    if(mode == SAVE_SCRIPT_MODE) {
     if(loopTime >= lastAction + frequence) {
       if(startTime ==0) {
@@ -168,7 +182,16 @@ void loop()
 
       lastAction = loopTime;
     }
+   } else {
+//    if(!activatedModule1) {
+//      Serial.println(activatedModule1);
+//      activatedModule1 = true;
+//    }
+    loopModule(loopTime,  minTimeActModule1, maxTimeActModule1, nextActivationModule1, 
+               minTimeDeactModule1, maxTimeDeactModule1, nextDeactivationModule1, activatedModule1);
    }
+// --- Fin code de test ------------------------------------------------------------------
+   
   //Lecture du script
   if(mode == PLAY_SCRIPT_MODE) {
     playScript(loopTime);
@@ -273,25 +296,30 @@ void readData() {
   }
 }
 
-void loopModule(unsigned long loopTime,  unsigned int minActTime, unsigned int maxActTime, unsigned long resultActTime, unsigned int minDeactTime, unsigned int maxDeactTime, unsigned long resultDeactTime, bool activatedModule) {
-   if (!activatedModule && loopTime >= nextActivationModule1) {
-    // set deactivation time
-    setNextTime(loopTime, minDeactTime, maxDeactTime, resultDeactTime);
- 
-    // activate module
-
-    activatedModule = true;
-  } else if (activatedModule1 && loopTime >= nextDeactivationModule1) {
-    // set next activation time
-    setNextTime(loopTime, minActTime, maxActTime, resultActTime);
-    
-    //deactivate module
-
-    activatedModule = false;
+void loopModule(unsigned long loopTime,  unsigned int minActTime, unsigned int maxActTime, 
+                unsigned long &resultActTime, unsigned int minDeactTime, unsigned int maxDeactTime, 
+                unsigned long &resultDeactTime, bool &activatedModule) {
+                  
+    if (!activatedModule && loopTime >= nextActivationModule1) {
+      Serial.println("activation");
+      //  set deactivation time
+      setNextTime(loopTime, minDeactTime, maxDeactTime, resultDeactTime);
+      
+      activatedModule = true;
+      setMode(PLAY_SCRIPT_MODE);
+    } else if (activatedModule1 && loopTime >= nextDeactivationModule1) {
+      Serial.println("desactivation");
+      
+      // set next activation time
+      setNextTime(loopTime, minActTime, maxActTime, resultActTime);
+      
+      //deactivate module
+      activatedModule = false;
+      setMode(IDLE_MODE);
   }
 }
 
-void setNextTime(unsigned long currentTime, unsigned int minTime, unsigned int maxTime, unsigned long resultTime) {
+void setNextTime(unsigned long currentTime, unsigned int minTime, unsigned int maxTime, unsigned long &resultTime) {
   resultTime = currentTime + getRandomTime(minTime, maxTime);
 }
 
@@ -339,17 +367,21 @@ void saveInBuffer() {
         //Mettre automatiquement fin à l'enregistrement si le tableau est plein.
         //if(scriptIndex > 130) {
         if(scriptIndex >= MAX_SCRIPT_SIZE) {
-          Serial.print("fin enregistrement nb commande = ");
-          Serial.println(scriptIndex);
-          Serial.print("Durée script = ");
-          Serial.print(((millis() - startTime) / 1000));
-          Serial.println(" secondes");
-          openFileAndWriteScript();
-         
-          //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
-          setMode(PLAY_SCRIPT_MODE);
+         finEnregistrementScript();
         }
       }
+}
+
+void finEnregistrementScript() {
+  Serial.print("fin enregistrement nb commande = ");
+  Serial.println(scriptIndex);
+  Serial.print("Durée script = ");
+  Serial.print(((millis() - startTime) / 1000));
+  Serial.println(" secondes");
+  openFileAndWriteScript();
+  
+  //mettre le mode à IDLE_MODE pour ne pas lancer la lecture du script juste à la fin de l'enregistrement
+  setMode(IDLE_MODE);
 }
 
 void  playScript(unsigned long loopTime) {
@@ -361,6 +393,7 @@ void  playScript(unsigned long loopTime) {
     //Arrêt de la lecture si la suite du script est vide
     //Serial.println(scriptArr[scriptIndex]);
     if(startTime == 0) {
+      Serial.println("Start script");
       startTime = loopTime;
     }
     
