@@ -1,13 +1,9 @@
-// contrôle GROT avec le joystick gris sur Aruino Leonardo et SSC32
+// contrôle GROT avec le joystick gris sur teensy et SSC32
 // droite et gauche sont définis en regardant de face
-// 2017
+// 2019
 
-#include <AltSoftSerial.h>
 #include <SPI.h>
 #include <SD.h>
-
-// Arduino Leonardo   5 TX      13 RX
-AltSoftSerial altSerial;
 
 #include <XBee.h>
 #define NB_CHANNEL 12
@@ -24,9 +20,9 @@ AltSoftSerial altSerial;
 //time to activate module 1 in millis
 unsigned long nextActivationModule1 = 0;
 // Module 1 : minimum in seconds
-unsigned int minTimeActModule1 = 1 * MINUTES_TO_SECONDS;
+unsigned int minTimeActModule1 = 0 * MINUTES_TO_SECONDS;
 // Module 1 : maximum in seconds
-unsigned int maxTimeActModule1 = 2 * MINUTES_TO_SECONDS;
+unsigned int maxTimeActModule1 = 1 * MINUTES_TO_SECONDS;
 //time to deactivate module 1 in millis
 unsigned long nextDeactivationModule1 = 0;
 // Module 1 : minimum in seconds
@@ -86,10 +82,10 @@ int delta;
 
 void setup()
 {
-  Serial1.begin(115200);
   Serial.begin(9600);
-  // altSerial.begin(19200);
+  Serial1.begin(115200);
   Serial2.begin(19200);
+  
   xbee.setSerial(Serial2);
 
   /* Initialisation du port SPI */
@@ -163,7 +159,8 @@ void loop()
         }
       }
 
-      actionAll();
+
+
 
       // Enregistrement des commandes dans un buffer qui sera ensuite enregistré sur la carte SD
       //La fonction saveInBuffer(), n'enregistre les commandes que si le mode est SAVE_SCRIPT_MODE
@@ -176,11 +173,11 @@ void loop()
     }
     playScript(loopTime);
   }
-
+      actionAll();
 
   //--- Début Code de test : simulation de données reçu depuis le xbee ------------------
   //Ce code de test doit être commenté si un xbee est connecté !!!
-  testloop(loopTime);
+ // testloop(loopTime);
   // --- Fin code de test ------------------------------------------------------------------
 
 }
@@ -462,6 +459,7 @@ void setMode(int newMode) {
 
   // Change le mode
   mode = newMode;
+  Serial.println(mode);
 }
 
 /** Fonction de chargement du fichier de script */
